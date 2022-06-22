@@ -2,7 +2,10 @@ import MongoDB from './connect.js';
 
 const Sets = MongoDB.Collection('sets');
 Sets.createIndex({name: "text"},{ default_language: "english" });
-Sets.createIndex( { name: 1 } )
+Sets.createIndex( { name: 1 } );
+
+const SetImages = MongoDB.Collection('set_images');
+const Images = MongoDB.Collection('images');
 
 const Themes = MongoDB.Collection('themes');
 Themes.createIndex({name: "text"});
@@ -25,6 +28,8 @@ const Colors = MongoDB.Collection('colors');
 
 export {
   Sets,
+  SetImages,
+  Images,
   Themes,
   Parts,
   PartCategories,

@@ -3,7 +3,7 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import getInstructions from './routes/instructions.js';
 import { getSet, getSetById } from './routes/sets.js';
-import { getImages, scrapeImages } from './routes/images.js';
+import { getImages } from './routes/images.js';
 import { getMinifigs } from './routes/minifigs.js';
 
 import './helpers/stringhelpers.js';
@@ -33,10 +33,6 @@ app.get('/sets/:id/instructions', async (req, res) => {
 
 app.get('/sets/:id/images', async (req, res) => {
     res.send(await getImages(req.params.id));
-});
-
-app.get('/sets/:id/scrape', async (req, res) => {
-    res.send(await scrapeImages(req.params.id));
 });
 
 app.get('/sets/:id/lite', async (req, res) => {
