@@ -1,8 +1,8 @@
 import getInstructions from "./instructions.js";
 import sources from '../db/sources.json' assert {type: 'json'};
-import { Sets, Themes } from '../mongo/index.js';
+import { InventoryMinifigs, Sets, Themes } from '../mongo/index.js';
 import getTheme from "./themes.js";
-import { getNumberOfSpareParts } from "./inventories.js";
+import { getNumberOfSpareParts, getNumberOfMinifigs } from "./inventories.js";
 
 export const getSet = async (searchString, theme = null, year = null, instructions = false) => {
     const query = [
@@ -32,7 +32,7 @@ export const getSet = async (searchString, theme = null, year = null, instructio
 };
 
 export const getSetById = async (id, instructions = false) => {
-    return await querySet({set_num: id}, null, instructions);
+    return (await querySet({set_num: id}, null, instructions))[0];
 }
 
 const querySet = async (query, sort = null, instructions) => {
@@ -47,6 +47,7 @@ const querySet = async (query, sort = null, instructions) => {
             }
 
             const num_spare_parts = await getNumberOfSpareParts(data.set_num);
+            const num_minifigs = await getNumberOfMinifigs(data.set_num);
 
             const ret = ({
                 set_num: data.set_num,
@@ -54,6 +55,7 @@ const querySet = async (query, sort = null, instructions) => {
                 year: data.year,
                 num_parts: data.num_parts,
                 num_spare_parts: num_spare_parts,
+                num_minifigs: num_minifigs,
                 image: {
                     src: `https://img.bricklink.com/ItemImage/SN/0/${data.set_num}.png`,
                     alt: `LEGO ${data.set_num} ${data.name}`,

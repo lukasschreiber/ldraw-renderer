@@ -1,7 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import getInstructions from './routes/instructions.js';
+import getInstructions, { getInstructionLink } from './routes/instructions.js';
 import { getSet, getSetById } from './routes/sets.js';
 import { getImages } from './routes/images.js';
 import { getMinifigs } from './routes/minifigs.js';
@@ -35,14 +35,14 @@ app.get('/sets/:id/images', async (req, res) => {
     res.send(await getImages(req.params.id));
 });
 
-app.get('/sets/:id/lite', async (req, res) => {
-    res.send(await getSetById(req.params.id));
-});
-
 app.get('/sets/:id/minifigs', async (req, res) => {
     res.send(await getMinifigs(req.params.id));
 });
 
+app.get('/instructions/:id/:instruction_id', async (req, res) => {
+    res.redirect(307, (await getInstructionLink(req.params.id, req.params.instruction_id)) ?? "back");
+});
+
 app.listen(port, () => {
-    console.log(`Cool lego app listening on port ${port}`);
+    console.log(`Very cool lego app listening on port ${port}`);
 });

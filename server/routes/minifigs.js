@@ -1,4 +1,5 @@
 import sources from '../db/sources.json' assert {type: 'json'};
+import fetch from 'node-fetch';
 
 export const getMinifigs = async (id) => {
     const minifigs = (await fetch(`https://rebrickable.com/api/v3/lego/sets/${id}/minifigs/`, {

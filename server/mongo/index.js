@@ -7,6 +7,9 @@ Sets.createIndex( { name: 1 } );
 const SetImages = MongoDB.Collection('set_images');
 const Images = MongoDB.Collection('images');
 
+const SetInstructions = MongoDB.Collection('set_instructions');
+const Instructions = MongoDB.Collection('instructions');
+
 const Themes = MongoDB.Collection('themes');
 Themes.createIndex({name: "text"});
 
@@ -29,6 +32,8 @@ const Colors = MongoDB.Collection('colors');
 export {
   Sets,
   SetImages,
+  SetInstructions,
+  Instructions,
   Images,
   Themes,
   Parts,
