@@ -1,0 +1,18 @@
+{
+    "bricklink": {
+        "url": "https://bricklink.com",
+        "name": "Bricklink",
+        "logo": {
+            "src": "https://static.bricklink.com/renovate/img/bl_logo-horizontal.svg",
+            "alt": "Bricklink Logo"
+        }
+    },
+    "rebrickable": {
+        "url": "https://rebrickable.com/home/",
+        "name": "Rebrickable",
+        "logo": {
+            "src": "https://rebrickable.com/static/img/title-sm.png?1551697414.1695075",
+            "alt": "Rebrickable Logo"
+        }
+    }
+}
