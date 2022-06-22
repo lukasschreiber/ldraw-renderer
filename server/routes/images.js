@@ -1,6 +1,6 @@
 import sources from '../db/sources.json' assert {type: 'json'};
-import puppeteer from 'puppeteer';
 import fetch from 'node-fetch';
+import cheerio from 'cheerio';
 import { Sets } from '../mongo/index.js';
 
 export const getImages = async (id) => {
@@ -39,49 +39,16 @@ export const getImages = async (id) => {
 };
 
 export const scrapeImages = async (id) => {
-    const blocked_domains = [
-        'googlesyndication.com',
-        'adservice.google.com',
-        'smartadserver.com',
-        'adnxs.com',
-        'servenobid.com',
-        'yahoo.com',
-        '1rx.io',
-        'amazon-adsystem.com',
-        'e-planning.net',
-        'openx.net',
-        '33across.com',
-        'yieldmo.com',
-        'sonobi.com',
-        'casalemedia.com',
-        'rubiconproject.com',
-    ];
+    const body = await fetch(`https://rebrickable.com/sets/${id}/`);
+    const $ = cheerio.load(await body.text()); // jQuery Syntax -vomit -
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        userDataDir: './puppeteer'
-    });
-    const page = await browser.newPage();
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-        const url = request.url();
-        if (['image', 'stylesheet', 'font'].indexOf(request.resourceType()) !== -1 || blocked_domains.some(domain => url.includes(domain))) {
-            request.abort();
-        } else {
-            request.continue();
-        }
-    });
-    await page.goto(`https://rebrickable.com/sets/${id}/`);
-    const body = await page.evaluate(() => {
-        const imagesRaw = Array.from(document.querySelector('.flex-control-thumbs').querySelectorAll('li > img'));
-        const images = [];
+    const imagesRaw = $(".flexslider").find("img");
+    const images = [];
 
-        for (let image of imagesRaw) {
-            images.push(image.src.split("/125x100")[0].replace("thumbs/", ""));
-        }
-        return images;
-    });
-    await browser.close();
 
-    return body;
+    for(let image of imagesRaw){
+        images.push($(image).attr("src").split("/125x100")[0].replace("thumbs/", ""));
+    }
+
+    return images;
 }
