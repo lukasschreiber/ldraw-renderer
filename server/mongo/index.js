@@ -29,6 +29,8 @@ Inventories.createIndex( { set_num : 1 } )
 const Elements = MongoDB.Collection('elements');
 const Colors = MongoDB.Collection('colors');
 
+const Part3D = MongoDB.Collection('part_3d');
+
 export {
   Sets,
   SetImages,
@@ -39,6 +41,7 @@ export {
   Parts,
   PartCategories,
   PartRelationships,
+  Part3D,
   Minifigs,
   InventorySets,
   InventoryParts,

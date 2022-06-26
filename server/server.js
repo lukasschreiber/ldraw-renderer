@@ -2,17 +2,23 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import getInstructions, { getInstructionLink } from './routes/instructions.js';
+import cors from 'cors';
 import { getSet, getSetById } from './routes/sets.js';
 import { getImages } from './routes/images.js';
 import { getMinifigs } from './routes/minifigs.js';
 
 import './helpers/stringhelpers.js';
+import { parseBrick, initParser, getColor } from './ldraw/parse.js';
 
 const app = express();
 dotenv.config();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use(cors());
 const port = parseInt(process.env.PORT) || 3000;
+
+// initParserialize Parser
+initParser();
 
 app.get('/sets/:id', async (req, res) => {
     res.send(await getSetById(req.params.id, true));
@@ -42,6 +48,11 @@ app.get('/sets/:id/minifigs', async (req, res) => {
 app.get('/instructions/:id/:instruction_id', async (req, res) => {
     res.redirect(307, (await getInstructionLink(req.params.id, req.params.instruction_id)) ?? "back");
 });
+
+app.get('/parse', async (req, res) => {
+    const color = getColor(req.query.color)
+    res.send(await parseBrick(`./ldraw/parts/${req.query.part}.dat`, {colors: color}));//0xB40000
+})
 
 app.listen(port, () => {
     console.log(`Very cool lego app listening on port ${port}`);

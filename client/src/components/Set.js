@@ -10,15 +10,15 @@ function Set() {
     const [minifigs, setMinifigs] = useState(null);
 
     React.useEffect(() => {
-        fetch(`/sets/${set_num}`)
+        fetch(`http://localhost:3001/sets/${set_num}`)
             .then((res) => res.json())
             .then((data) => setData(data));
 
-        fetch(`/sets/${set_num}/images`)
+        fetch(`http://localhost:3001/sets/${set_num}/images`)
             .then((res) => res.json())
             .then((data) => setImages(data));
 
-        fetch(`/sets/${set_num}/minifigs`)
+        fetch(`http://localhost:3001/sets/${set_num}/minifigs`)
             .then((res) => res.json())
             .then((data) => setMinifigs(data));
 

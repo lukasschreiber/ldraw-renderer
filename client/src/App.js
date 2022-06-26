@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Set from "./components/Set";
+import { Three } from "./components/Three";
 
 function App() {
 
@@ -11,6 +12,7 @@ function App() {
         <Route path="/sets">
           <Route path=":set_num" element={<Set />} />
         </Route>
+        <Route path="three" element={<Three />} />
       </Routes>
     </div>
   );
