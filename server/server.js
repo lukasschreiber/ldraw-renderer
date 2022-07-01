@@ -9,6 +9,7 @@ import { getMinifigs } from './routes/minifigs.js';
 
 import './helpers/stringhelpers.js';
 import { parseBrick, initParser, getColor } from './ldraw/parse.js';
+import * as Packager from './ldraw/pack.js';
 
 const app = express();
 dotenv.config();
@@ -19,6 +20,7 @@ const port = parseInt(process.env.PORT) || 3000;
 
 // initParserialize Parser
 initParser();
+Packager.initParser();
 
 app.get('/sets/:id', async (req, res) => {
     res.send(await getSetById(req.params.id, true));
@@ -52,7 +54,11 @@ app.get('/instructions/:id/:instruction_id', async (req, res) => {
 app.get('/parse', async (req, res) => {
     const color = getColor(req.query.color)
     res.send(await parseBrick(`./ldraw/parts/${req.query.part}.dat`, {colors: color}));//0xB40000
-})
+});
+
+app.get('/pack', async (req, res) => {
+    res.send(await Packager.parseBrick(`./ldraw/parts/${req.query.part}.dat`));//0xB40000
+});
 
 app.listen(port, () => {
     console.log(`Very cool lego app listening on port ${port}`);

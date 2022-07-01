@@ -23,10 +23,10 @@ const parseLine = async (type, content, options, invertInFile) => {
     switch (type) {
         case 0: return parseComment(content, options);
         case 1: return await parseReference(content, options, invertNextLine);
-        case 2: return options.lines ? parseLineBetweenPoints(content, options) : null;
+        case 2: return parseLineBetweenPoints(content, options);
         case 3: return parseTriangle(content, options, invertNextLine);
         case 4: return parseQuad(content, options, invertNextLine);
-        case 5: return options.optionalLines ? parseOptionalLines(content, options) : null;
+        case 5: return parseOptionalLines(content, options);
     };
 };
 
@@ -69,12 +69,12 @@ const parseReference = async (line, options, invertNextLine) => {
     const matrix = new Matrix3().set(...transformation);
     if (matrix.determinant() < 0) invertNextLine = !invertNextLine;
 
-    const subpart = await parseFile(path, { colors: { main: color, edge: options.colors.edge } }, invertNextLine);
+    const subpart = await parseFile(path, { colors: { main: color, edge: options.colors.edge } }, invertNextLine); //FIX ME take new edge Color
     return {
         color,
         transformation,
         translation: [m[0], m[1], m[2]],
-        subpart, //FIX ME take new edge Color
+        subpart,
     };
 };
 

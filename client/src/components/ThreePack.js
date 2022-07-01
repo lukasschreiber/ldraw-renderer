@@ -1,17 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import * as THREE from 'three';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 import './helpers/creaseVertexNormals.js';
+import './helpers/loopSubdivideSurfaces.js';
 
-export const Three = (props) => {
+export const ThreePack = (props) => {
 
     const mount = useRef(null);
+    const { id, color } = useParams();
     const [brick, setBrick] = useState(null);
+    const [colors, setColors] = useState(null);
     const [abortController, setAbortController] = useState(new AbortController());
 
     const materials = {};
+    const creases = [];
 
     const Matrix4 = new THREE.Matrix4();
     const Vector31 = new THREE.Vector3();
@@ -35,27 +40,33 @@ export const Three = (props) => {
             try{
                 //26074p01 Penguin 0
                 //64452p02 Cow 15
-                const data = await fetch(`http://192.168.178.53:3001/parse?part=3001&color=14`, {signal: abortController.signal}).then(res => res.json());
-                renderPart(scene, data);
+                const data = await fetch(`http://192.168.178.53:3001/pack?part=${id}`, {signal: abortController.signal}).then(res => res.json());
                 setBrick(data);
+                console.log(color);
+                setColors({16: "#B40000", 24: "#333333"});
+
+                renderPart(scene, brick.start);
             }catch(err) {
                 if(err.name === "AbortError")
                     setAbortController(new AbortController());
             }
             
+        }else{
+            renderPart(scene, brick.start);
         }
-
-        renderPart(scene, brick);
 
         const group = new THREE.Group();
 
         for (let color in materials) {
             const material = materials[color];
-            let a = performance.now();
-            const mergedGeometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(material.geometries)).computeAngleVertexNormals(Math.PI * 0.3888889); // 70deg
-            BufferGeometryUtils.mergeVertices(mergedGeometry);
-            let b = performance.now();
-            console.log(`calculating normals took ${b-a}ms`)
+
+            // let a = performance.now();
+            // const mergedGeometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(material.geometries)).computeAngleVertexNormals(Math.PI/3); // 70deg
+            // let b = performance.now();
+            // console.log(`calculating normals took ${b-a}ms`)
+            const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(material.geometries);
+            mergedGeometry.computeVertexNormals();
+
             const mesh = new THREE.Mesh(mergedGeometry, material.material);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -63,35 +74,51 @@ export const Three = (props) => {
             group.add(mesh);
         }
 
-        new THREE.Box3().setFromObject(group).getCenter(group.position).multiplyScalar(- 1);
+        // new THREE.Box3().setFromObject(group).getCenter(group.position).multiplyScalar(- 1);
 
         scene.add(group);
     };
 
-    const renderPart = (scene, data, transformations = [], translations = []) => {
-        if (data === null) return;
-        if (typeof data[Symbol.iterator] !== 'function') data = [data];
+    const getColor = (code, mainColor) => {
+        let color = brick.materials[code];
+        if(color === 24){
+            return colors[color];
+        }
+
+        if(color === 16){
+            return mainColor;
+        }
+
+        return color.main;
+    }
+
+    const renderPart = (scene, hash, transformations = [], translations = [], mainColor = colors[16], invert = false) => {
+        if (hash === null || !brick.files[hash]) return;
+        
+        const data = brick.files[hash];
+        const clockwise = brick.inverted.includes(hash);
 
         for (let part of data) {
             if (part.vertices) {
-                renderFace(scene, part.vertices, part.color, transformations, translations, 1.0, part.name);
+                renderFace(scene, part.vertices, getColor(part.color, mainColor), transformations, translations, invert, clockwise);
             }
 
-            if (part.from && part.to && !part.optional) {
-                // renderLine(scene, part.from, part.to, part.color, transformations, translations);
+            if (part.type === 2) {
+                renderLine(scene, part.points[0], part.points[1], getColor(part.color, "#333333"), transformations, translations);
             }
 
-            if (part.subpart) {
-                for (let subpart of part.subpart) {
-                    renderPart(scene, subpart, [...transformations, new THREE.Matrix3().set(...part.transformation)], [...translations, new THREE.Vector3().set(...part.translation)]);
-                }
+            if (part.type === 1) {
+                let invertReference = part.invert;
+                if(invert) invertReference = !invertReference;
+                // 16 changes dependent on context
+                renderPart(scene, part.reference, [...transformations, new THREE.Matrix3().set(...part.transformation)], [...translations, new THREE.Vector3().set(...part.translation)], getColor(part.color, mainColor), invertReference);
             }
         }
     };
 
     const renderLine = (scene, from, to, color, transformations, translations) => {
         const geometry = new THREE.BufferGeometry().setFromPoints([Vector31.set(...to), Vector32.set(...from)]);
-        const material = new THREE.LineBasicMaterial({ color: color });
+        const material = new THREE.LineBasicMaterial({ color: color, linewidth: 1 });
 
         const line = new THREE.Line(geometry, material);
 
@@ -102,14 +129,23 @@ export const Three = (props) => {
 
         geometry.applyMatrix4(Matrix4.setFromMatrix3(changeBasis));
 
-        scene.add(line);
+        creases.push(line);
+        // scene.add(line);
     };
 
-    const renderFace = (scene, vertices, color, transformations, translations, opacity, name = "") => {
+    const renderFace = (scene, vertices, color, transformations, translations, invert = false, clockwise = false) => {
         const geometry = new THREE.BufferGeometry();
-        const verticesArray = new Float32Array(vertices);
+        const v = new Float32Array(vertices);
 
-        geometry.setAttribute('position', new THREE.BufferAttribute(verticesArray, 3));
+        if(clockwise) invert = !invert;
+
+        if(invert){
+            for(let i = 0; i < v.length; i += 9){
+                [v[i+3], v[i+4], v[i+5], v[i+6], v[i+7], v[i+8]] = [v[i+6], v[i+7], v[i+8], v[i+3], v[i+4], v[i+5]];
+            }
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(v, 3));
 
         for (let i = transformations.length - 1; i >= 0; i--) {
             geometry.applyMatrix4(Matrix4.setFromMatrix3(transformations[i]));
@@ -164,7 +200,7 @@ export const Three = (props) => {
         scene.add(shadowLight);
 
 
-        // new RGBELoader().load('./Field-Path-Rummbach-4K.hdr', (texture) => {
+        // new RGBELoader().load('../../Field-Path-Rummbach-4K.hdr', (texture) => {
         //     texture.mapping = THREE.EquirectangularReflectionMapping;
         //     scene.environment = texture;
         // });

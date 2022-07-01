@@ -1,63 +1,90 @@
-import fs from 'fs';
-import * as THREE from 'three';
-import { Matrix3 } from 'three';
-import { Part3D } from '../mongo/index.js';
 import '../helpers/stringhelpers.js';
 
-let invert = false;
+import fs from 'fs';
+import { Matrix3 } from 'three';
+import { Part3D } from '../mongo/index.js';
 
-let files = {};
-const colors = {};
+const FLAGS = {
+    invertNextLine: false
+}
+
+const CACHE = {
+    files: {},
+    matrix: new Matrix3()
+}
+
+const RESPONSE = {
+    files: {},
+    materials: {},
+    inverted: new Set(),
+    start: null
+}
+
+const COLORS = {};
 
 export const initParser = async () => {
-    const parsedColors = await parseFile("./ldraw/LDConfig.ldr");
+    const parsedColors = await parseFile("./ldraw/LDConfig.ldr", true);
     for (let color of parsedColors) {
-        colors[color.code] = color.color;
+        COLORS[color.code] = color.color;
     }
 };
 
-const parseLine = async (type, content, options, invertInFile) => {
-    let invertNextLine = invertInFile;
-    if (invert) invertNextLine = !invertNextLine;
-    invert = false;
+const clearResponse = () => {
+    RESPONSE.files = {};
+    RESPONSE.materials = {};
+    RESPONSE.inverted = new Set();
+    RESPONSE.start = null;
+}
+
+const parseLine = async (type, content, nosave = false) => {
     switch (type) {
-        case 0: return parseComment(content, options);
-        case 1: return await parseReference(content, options, invertNextLine);
-        case 2: return options.lines ? parseLineBetweenPoints(content, options) : null;
-        case 3: return parseTriangle(content, options, invertNextLine);
-        case 4: return parseQuad(content, options, invertNextLine);
-        case 5: return options.optionalLines ? parseOptionalLines(content, options) : null;
+        case 0: return parseComment(content, nosave);
+        case 1: return await parseReference(content);
+        case 2: return parseLineBetweenPoints(content);
+        case 3: return parseTriangle(content);
+        case 4: return parseQuad(content);
+        case 5: return parseOptionalLines(content);
     };
 };
 
-const parseFile = async (path, options, invertNextLine) => {
+const parseFile = async (path, nosave = false) => {
     const file = await readFile(path);
-    file.find(line => {
-        const tokens = splitLine(line);
-        if(tokens[1] === "BFC" && tokens.find(p => p === "CW")){
-            console.log("CW");
-            invertNextLine = !invertNextLine;
-        }
-    });
+    let clockwise = false;
 
     const lines = (await Promise.all(file.map(async (line, index) => {
         if (index === 0) return null; // title
 
         const content = line.substring(2);
-        return await parseLine(parseInt(line.charAt(0)), content, options, invertNextLine, file[1].split(": ")[1]);
+        const parsedLine = await parseLine(parseInt(line.charAt(0)), content, file[1].split(": ")[1], nosave); 
+        if(parsedLine?.BFC){
+            if(parsedLine.BFC.clockwise) clockwise = true;
+            return null;
+        }
+        return parsedLine;
     }))).filter(line => line !== null);
+
+    if(clockwise){
+        RESPONSE.inverted.add(path.hashCode());
+    }
 
     return lines;
 };
 
-const parseReference = async (line, options, invertNextLine) => {
+const parseReference = async (line) => {
     const chars = splitLine(line);
     let path = parsePath(chars[chars.length - 1]).replace("stud.dat", "stud-logo4.dat");
-
     // const highresVersionExists = fs.existsSync(path.replace("parts/", "parts/48/"));
     // if(highresVersionExists) path = path.replace("parts/", "parts/48/");
 
-    const color = parseColor(chars[0], options);
+    const hash = path.hashCode();
+
+    let invert = FLAGS.invertNextLine;
+
+    if(FLAGS.invertNextLine) {
+        FLAGS.invertNextLine = false;
+    }
+
+    const color = parseColor(chars[0]);
     const m = chars.filter((p, i) => i > 0 && i < chars.length - 1).map(p => parseFloat(p));
 
     const transformation = [
@@ -66,48 +93,52 @@ const parseReference = async (line, options, invertNextLine) => {
         m[9], m[10], m[11]
     ];
 
-    const matrix = new Matrix3().set(...transformation);
-    if (matrix.determinant() < 0) invertNextLine = !invertNextLine;
+    const matrix = CACHE.matrix.set(...transformation);
+    if (matrix.determinant() < 0) invert = !invert;
 
-    const subpart = await parseFile(path, { colors: { main: color, edge: options.colors.edge } }, invertNextLine);
+    if(!RESPONSE.files[hash]){
+        RESPONSE.files[hash] = await parseFile(path);
+    }
+
     return {
-        color,
+        type: 1,
+        color: JSON.stringify(color).hashCode(),
         transformation,
         translation: [m[0], m[1], m[2]],
-        subpart, //FIX ME take new edge Color
+        reference: hash,
+        invert 
     };
 };
 
-const parseLineBetweenPoints = (line, options) => {
+const parseLineBetweenPoints = (line) => {
     const chars = splitLine(line);
-    const color = parseColor(chars[0], options);
+    const color = parseColor(chars[0]);
     const x = chars.filter((p, i) => i > 0 && i < 4).map(p => parseFloat(p));
     const y = chars.filter((p, i) => i > 3 && i < 7).map(p => parseFloat(p));
     return {
-        color,
-        from: x,
-        to: y
+        type: 2,
+        color: JSON.stringify(color).hashCode(),
+        points: [x, y]
     };
 };
 
-const parseTriangle = (line, options, invertNextLine) => {
+const parseTriangle = (line) => {
     const chars = splitLine(line);
-    const color = parseColor(chars[0], options);
+    const color = parseColor(chars[0]);
     const x = chars.filter((p, i) => i > 0 && i < 4).map(p => parseFloat(p));
     const y = chars.filter((p, i) => i > 3 && i < 7).map(p => parseFloat(p));
     const z = chars.filter((p, i) => i > 6 && i < 10).map(p => parseFloat(p));
     return {
-        color,
-        vertices: !invertNextLine ? [...x, ...y, ...z] : [...x, ...z, ...y],
+        type: 3,
+        color: JSON.stringify(color).hashCode(),
+        vertices: [...x, ...y, ...z]
     };
 };
 
-const parseQuad = (line, options, invertNextLine) => {
+const parseQuad = (line) => {
     const chars = splitLine(line);
 
-    const clockwise = !invertNextLine;
-
-    const color = parseColor(chars[0], options);
+    const color = parseColor(chars[0]);
     const x = chars.filter((p, i) => i > 0 && i < 4).map(p => parseFloat(p));
     const y = chars.filter((p, i) => i > 3 && i < 7).map(p => parseFloat(p));
     const z = chars.filter((p, i) => i > 6 && i < 10).map(p => parseFloat(p));
@@ -115,39 +146,33 @@ const parseQuad = (line, options, invertNextLine) => {
 
     const triangles = [];
 
-    if (clockwise) {
-        triangles.push(...x, ...y, ...z); // x y z
-        triangles.push(...z, ...w, ...x); // z w x
-    } else {
-        triangles.push(...x, ...z, ...y); // x z y
-        triangles.push(...z, ...x, ...w); // z x w
-    }
+    triangles.push(...x, ...y, ...z); // x y z
+    triangles.push(...z, ...w, ...x); // z w x
 
     return {
-        color,
+        type: 4,
+        color: JSON.stringify(color).hashCode(),
         vertices: triangles,
     };
 };
 
-const parseOptionalLines = (line, options) => {
+const parseOptionalLines = (line) => {
     const chars = splitLine(line);
-    const color = parseColor(chars[0], options);
+    const color = parseColor(chars[0]);
     const x = chars.filter((p, i) => i > 0 && i < 4).map(p => parseFloat(p));
     const y = chars.filter((p, i) => i > 3 && i < 7).map(p => parseFloat(p));
     const z = chars.filter((p, i) => i > 6 && i < 10).map(p => parseFloat(p));
     const w = chars.filter((p, i) => i > 9 && i < 13).map(p => parseFloat(p));
 
     return {
-        color,
-        from: x,
-        to: y,
-        optional: true,
-        controlPoints: [z, w]
+        color: JSON.stringify(color).hashCode(),
+        points: [x, y, z, w],
+        type: 5
     };
 
 };
 
-const parseComment = (line, options) => {
+const parseComment = (line, nosave = false) => {
     const chars = splitLine(line);
     const unsupportedCommands = ["STEP", "WRITE", "PRINT", "CLEAR", "PAUSE", "SAVE"];
     if (
@@ -159,28 +184,29 @@ const parseComment = (line, options) => {
 
     // do some BFC parsing here
     if (chars[0] === "BFC") {
-        if (chars.find(p => p === "INVERTNEXT")) invert = true;
+        if (chars.find(p => p === "INVERTNEXT")) FLAGS.invertNextLine = true;
+        if (chars.find(p => p === "CERTIFY")) return {BFC: {clockwise: chars.find(p => p === "CW")}}
         return null;
     }
 
-    if (chars[0].charAt(0) === "!") return parseMetaCommand(line, options);
+    if (chars[0].charAt(0) === "!") return parseMetaCommand(line, nosave);
 
     return null;
 };
 
 
-const parseMetaCommand = (line, options) => {
+const parseMetaCommand = (line, nosave = false) => {
     const chars = splitLine(line);
     switch (chars[0].replace("!", "")) {
-        case "COLOUR": return parseMetaCommandColor(chars, options);
+        case "COLOUR": return parseMetaCommandColor(chars, nosave);
         default: return null;
     }
 };
 
-const parseMetaCommandColor = (line, options) => {
+const parseMetaCommandColor = (line, nosave = false) => {
     const code = line[line.indexOf("CODE") + 1];
-    const value = parseColor(line[line.indexOf("VALUE") + 1], options);
-    const edge = parseColor(line[line.indexOf("EDGE") + 1], options);
+    const value = parseColor(line[line.indexOf("VALUE") + 1], nosave);
+    const edge = parseColor(line[line.indexOf("EDGE") + 1], nosave);
 
     const color = {
         main: value,
@@ -217,7 +243,7 @@ const parseMetaCommandColor = (line, options) => {
 
     if (line.indexOf("MATERIAL") > 0) {
         color.material = 5;
-        color.customMaterial = parseMaterial(line.slice(line.indexOf("MATERIAL") + 1), options);
+        color.customMaterial = parseMaterial(line.slice(line.indexOf("MATERIAL") + 1));
     }
 
     return { code, color };
@@ -227,53 +253,78 @@ const splitLine = (line) => line.split(/\s+/);
 const parsePath = (file) => `./ldraw/parts/${file.replace("\\", "/")}`;
 const parseAlpha = (value) => parseFloat((parseInt(value) / 255).toFixed(2));
 
-const parseMaterial = (line, options) => {
+const parseMaterial = (line) => {
     return null;
 };
 
-const parseColor = (color, options) => {
+const parseColor = (color, nosave = false) => {
+    let colorOutput = color;
+    let direct = false;
     if (color.includes("0x2")) {
-        return new THREE.Color(parseInt(color.split("0x2")[1], 16));
+        colorOutput = parseInt(color.split("0x2")[1], 16);
+        direct = true;
     }
 
     if (color.includes("#")) {
-        return new THREE.Color(parseInt(color.split("#")[1], 16));
+        colorOutput = parseInt(color.split("#")[1], 16);
+        direct = true;
     }
 
-    switch (parseInt(color)) {
-        case 16: return new THREE.Color(options.colors.main);
-        case 24: return new THREE.Color(options.colors.edge);
-        default: return colors[color.toString()].main;
+    if(!direct){
+        switch (parseInt(color)) {
+            case 16: colorOutput = 16; break;
+            case 24: colorOutput = 24; break;
+            default: colorOutput = COLORS[color.toString()];
+        }
     }
+
+    if(!nosave){
+        const hash = JSON.stringify(colorOutput).hashCode();
+        if(!RESPONSE.materials[hash]){
+            RESPONSE.materials[hash] = colorOutput;
+        }
+    }
+
+    return colorOutput;
 };
 
-export const parseBrick = async (path, options) => {
-    // const hash = `${path}${JSON.stringify(options)}`.hashCode();
-    // const savedFile = await Part3D.findOne({ hash });
-    // if (savedFile) {
-    //     return savedFile.package;
-    // } else {
-        const packedFile = await parseFile(path, options);
-        // Part3D.updateOne({ hash }, { $set: { package: packedFile } }, { upsert: true });
-        return packedFile;
-    // }
+export const parseBrick = async (path) => {
+    clearResponse();
 
+    const hash = path.hashCode();
+    const savedFile = await Part3D.findOne({ hash });
+    if (savedFile) {
+        return savedFile.package;
+    } else {
+        const start = await parseFile(path);
+        RESPONSE.files[path.hashCode()] = start;
+
+        const responsePackage = {
+            files: RESPONSE.files,
+            materials: RESPONSE.materials,
+            inverted: Array.from(RESPONSE.inverted),
+            start: path.hashCode()
+        }
+
+        Part3D.updateOne({ hash }, { $set: { package: responsePackage } }, { upsert: true });
+        return {...responsePackage};
+    }
 };
 
 export const getColor = (color) => {
-    return { main: colors[color.toString()].main.getHex(), edge: colors[color.toString()].edge.getHex() };
+    return { main: COLORS[color.toString()].main, edge: COLORS[color.toString()].edge };
 };
 
 const readFile = async (path) => {
     let hash = path.hashCode();
 
-    if (!files[hash]) {
+    if (!CACHE.files[hash]) {
         const file = await fs.promises.readFile(path, 'utf-8');
         const lines = file.split(/\r?\n/).filter(line => line !== "").map(line => line.trim());
-        files[hash] = lines;
+        CACHE.files[hash] = lines;
         return lines;
     } else {
-        return files[hash];
+        return CACHE.files[hash];
     }
 };
 
