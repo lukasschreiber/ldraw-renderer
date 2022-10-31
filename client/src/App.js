@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import { Playground } from "./components/Playground";
+import { PlaygroundIso } from "./components/PlaygroundIso";
 import Set from "./components/Set";
 // import { Three } from "./components/Three";
 import { ThreePack } from "./components/ThreePack";
@@ -15,6 +16,7 @@ function App() {
           <Route path=":set_num" element={<Set />} />
         </Route>
         <Route path="three/:id" element={<ThreePack />} />
+        <Route path="/iso" element={<PlaygroundIso />} />
         <Route path="/playground">
         <Route path=":id" element={<Playground />} />
           <Route path=":id/:color" element={<Playground />} />
