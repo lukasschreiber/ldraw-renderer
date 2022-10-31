@@ -5,7 +5,17 @@ export const getInventory = async (id) => {
 };
 
 export const getParts = async (inventory_id) => {
-    return (await InventoryParts.find({ inventory_id: inventory_id }).toArray());
+    const parts = (await InventoryParts.aggregate([
+        { $match: { $and: [{ inventory_id: inventory_id }, { is_spare: "f" }] } },
+        { $project: { _id: 0, inventory_id: 0, is_spare: 0 } }
+    ]).toArray());
+
+    const spare = (await InventoryParts.aggregate([
+        { $match: { $and: [{ inventory_id: inventory_id }, { is_spare: "t" }] } },
+        { $project: { _id: 0, inventory_id: 0, is_spare: 0 } }
+    ]).toArray());
+
+    return {spare, parts};
 };
 
 export const getNumberOfMinifigs = async (set_num) => {
@@ -20,7 +30,7 @@ export const getNumberOfMinifigs = async (set_num) => {
             }
         ]).toArray();
     return minifigs.length > 0 ? minifigs[0].minifigs : 0;
-}
+};
 
 export const getNumberOfSpareParts = async (set_num) => {
     const inventory = await getInventory(set_num);

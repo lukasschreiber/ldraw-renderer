@@ -1,24 +1,28 @@
 import '../helpers/stringhelpers.js';
 
-import fs from 'fs';
+import fs from 'graceful-fs';
+import util from "util";
 import { Matrix3 } from 'three';
 import { Part3D } from '../mongo/index.js';
 
+const readFileAsync = util.promisify(fs.readFile);
+
 const FLAGS = {
     invertNextLine: false
-}
+};
 
 const CACHE = {
     files: {},
     matrix: new Matrix3()
-}
+};
 
 const RESPONSE = {
     files: {},
     materials: {},
     inverted: new Set(),
+    names: {},
     start: null
-}
+};
 
 const COLORS = {};
 
@@ -33,8 +37,9 @@ const clearResponse = () => {
     RESPONSE.files = {};
     RESPONSE.materials = {};
     RESPONSE.inverted = new Set();
+    RESPONSE.names = {};
     RESPONSE.start = null;
-}
+};
 
 const parseLine = async (type, content, nosave = false) => {
     switch (type) {
@@ -48,6 +53,8 @@ const parseLine = async (type, content, nosave = false) => {
 };
 
 const parseFile = async (path, nosave = false) => {
+    RESPONSE.names[path.hashCode()] = path;
+
     const file = await readFile(path);
     let clockwise = false;
 
@@ -55,15 +62,15 @@ const parseFile = async (path, nosave = false) => {
         if (index === 0) return null; // title
 
         const content = line.substring(2);
-        const parsedLine = await parseLine(parseInt(line.charAt(0)), content, file[1].split(": ")[1], nosave); 
-        if(parsedLine?.BFC){
-            if(parsedLine.BFC.clockwise) clockwise = true;
+        const parsedLine = await parseLine(parseInt(line.charAt(0)), content, file[1].split(": ")[1], nosave);
+        if (parsedLine?.BFC) {
+            if (parsedLine.BFC.clockwise) clockwise = true;
             return null;
         }
         return parsedLine;
     }))).filter(line => line !== null);
 
-    if(clockwise){
+    if (clockwise) {
         RESPONSE.inverted.add(path.hashCode());
     }
 
@@ -72,7 +79,7 @@ const parseFile = async (path, nosave = false) => {
 
 const parseReference = async (line) => {
     const chars = splitLine(line);
-    let path = parsePath(chars[chars.length - 1]).replace("stud.dat", "stud-logo4.dat");
+    let path = parsePath(chars[chars.length - 1]).replace("/stud.dat", "/stud-logo4.dat");
     // const highresVersionExists = fs.existsSync(path.replace("parts/", "parts/48/"));
     // if(highresVersionExists) path = path.replace("parts/", "parts/48/");
 
@@ -80,7 +87,7 @@ const parseReference = async (line) => {
 
     let invert = FLAGS.invertNextLine;
 
-    if(FLAGS.invertNextLine) {
+    if (FLAGS.invertNextLine) {
         FLAGS.invertNextLine = false;
     }
 
@@ -96,7 +103,7 @@ const parseReference = async (line) => {
     const matrix = CACHE.matrix.set(...transformation);
     if (matrix.determinant() < 0) invert = !invert;
 
-    if(!RESPONSE.files[hash]){
+    if (!RESPONSE.names[hash]) {
         RESPONSE.files[hash] = await parseFile(path);
     }
 
@@ -106,7 +113,7 @@ const parseReference = async (line) => {
         transformation,
         translation: [m[0], m[1], m[2]],
         reference: hash,
-        invert 
+        invert
     };
 };
 
@@ -185,7 +192,7 @@ const parseComment = (line, nosave = false) => {
     // do some BFC parsing here
     if (chars[0] === "BFC") {
         if (chars.find(p => p === "INVERTNEXT")) FLAGS.invertNextLine = true;
-        if (chars.find(p => p === "CERTIFY")) return {BFC: {clockwise: chars.find(p => p === "CW")}}
+        if (chars.find(p => p === "CERTIFY")) return { BFC: { clockwise: chars.find(p => p === "CW") } };
         return null;
     }
 
@@ -270,7 +277,7 @@ const parseColor = (color, nosave = false) => {
         direct = true;
     }
 
-    if(!direct){
+    if (!direct) {
         switch (parseInt(color)) {
             case 16: colorOutput = 16; break;
             case 24: colorOutput = 24; break;
@@ -278,9 +285,9 @@ const parseColor = (color, nosave = false) => {
         }
     }
 
-    if(!nosave){
+    if (!nosave) {
         const hash = JSON.stringify(colorOutput).hashCode();
-        if(!RESPONSE.materials[hash]){
+        if (!RESPONSE.materials[hash]) {
             RESPONSE.materials[hash] = colorOutput;
         }
     }
@@ -297,17 +304,19 @@ export const parseBrick = async (path) => {
         return savedFile.package;
     } else {
         const start = await parseFile(path);
+        RESPONSE.names[hash] = path;
         RESPONSE.files[path.hashCode()] = start;
 
         const responsePackage = {
             files: RESPONSE.files,
             materials: RESPONSE.materials,
             inverted: Array.from(RESPONSE.inverted),
-            start: path.hashCode()
-        }
+            start: path.hashCode(),
+            names: RESPONSE.names
+        };
 
         Part3D.updateOne({ hash }, { $set: { package: responsePackage } }, { upsert: true });
-        return {...responsePackage};
+        return { ...responsePackage };
     }
 };
 
@@ -315,16 +324,10 @@ export const getColor = (color) => {
     return { main: COLORS[color.toString()].main, edge: COLORS[color.toString()].edge };
 };
 
-const readFile = async (path) => {
-    let hash = path.hashCode();
 
-    if (!CACHE.files[hash]) {
-        const file = await fs.promises.readFile(path, 'utf-8');
-        const lines = file.split(/\r?\n/).filter(line => line !== "").map(line => line.trim());
-        CACHE.files[hash] = lines;
-        return lines;
-    } else {
-        return CACHE.files[hash];
-    }
+const readFile = async (path) => {
+    const file = await readFileAsync(path, 'utf-8');
+    const lines = file.split(/\r?\n/).filter(line => line !== "").map(line => line.trim());
+    return lines;
 };
 

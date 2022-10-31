@@ -7,9 +7,9 @@ import { SetInstructions, Instructions } from '../mongo/index.js';
 const getInstructions = async (id) => {
     const instructionId = (await SetInstructions.findOne({ set_num: id }))?.instructions_id;
     const instructions = [];
-    if(instructionId){
+    if (instructionId) {
         instructions.push(...await Instructions.find({ instructions_id: instructionId }).toArray());
-    }else{
+    } else if(instructionId !== null){
         instructions.push(...await scrapeInstructionInformation(id));
     }
 
@@ -24,32 +24,37 @@ const getInstructions = async (id) => {
         paper: instruction.paper,
         size: instruction.size
     }));
-}
+};
 
 const scrapeInstructionInformation = async (id) => {
     const instructionsId = uuid();
 
+    console.log(`https://rebrickable.com/instructions/${id}/`);
     const body = await fetch(`https://rebrickable.com/instructions/${id}/`);
     const $ = cheerio.load(await body.text()); // jQuery Syntax -vomit -
     const instructionsRaw = $("#bi_list_html div > a");
     const instructions = [];
 
+    if ( $('#bi_list_html div').text().includes("No files found")) {
+        SetInstructions.updateOne({ set_num: id }, { $set: { instructions_id: null } }, { upsert: true });
+        return [];
+    }
+
     const bulk = Instructions.initializeUnorderedBulkOp();
 
-    for(let instruction of instructionsRaw){
+    for (let instruction of instructionsRaw) {
         const text = $(instruction).text().split("\n").filter(a => a !== "");
         const image = $(instruction).find('img');
-
         const candidate = {
             instructions_id: instructionsId,
-            id: parseInt(instruction.attribs.href.split("/")[instruction.attribs.href.split("/").findIndex(p => p === "instructions")+1]),
+            id: parseInt(instruction.attribs.href.split("/")[instruction.attribs.href.split("/").findIndex(p => p === "instructions") + 1]),
             name: text[0],
             paper: text.find(p => p.includes("Paper: ")) ?? "",
             size: text[text.length - 1],
             src: $(image).attr('data-src').split("/180x144")[0].replace("thumbs/", ""),
             alt: $(image).attr("alt"),
             source: "rebrickable"
-        }
+        };
 
         bulk.insert(candidate);
         instructions.push(candidate);
@@ -59,19 +64,18 @@ const scrapeInstructionInformation = async (id) => {
     SetInstructions.updateOne({ set_num: id }, { $set: { instructions_id: instructionsId } }, { upsert: true });
 
     return instructions;
-}
+};
 
 export const getInstructionLink = async (id, instruction_id) => {
-    console.log("here")
     const body = await fetch(`https://rebrickable.com/instructions/${id}/`);
     const $ = cheerio.load(await body.text()); // jQuery Syntax -vomit -
     const instructionsRaw = $("#bi_list_html div > a");
-    for(let instruction of instructionsRaw){
-        if(instruction.attribs.href.includes(instruction_id)){
+    for (let instruction of instructionsRaw) {
+        if (instruction.attribs.href.includes(instruction_id)) {
             return `https://rebrickable.com/${instruction.attribs.href}`;
         }
     }
     return null;
-}
+};
 
 export default getInstructions;

@@ -16,11 +16,11 @@ export const ThreePack = (props) => {
     const [abortController, setAbortController] = useState(new AbortController());
 
     const materials = {};
-    const creases = [];
+    // const creases = [];
 
     const Matrix4 = new THREE.Matrix4();
-    const Vector31 = new THREE.Vector3();
-    const Vector32 = new THREE.Vector3();
+    // const Vector31 = new THREE.Vector3();
+    // const Vector32 = new THREE.Vector3();
 
     // const moveLight = new THREE.Vector3().set(40, 40, 40);
     const positionLight = new THREE.Matrix3().set(
@@ -40,7 +40,7 @@ export const ThreePack = (props) => {
             try{
                 //26074p01 Penguin 0
                 //64452p02 Cow 15
-                const data = await fetch(`http://192.168.178.53:3001/pack?part=${id}`, {signal: abortController.signal}).then(res => res.json());
+                const data = await fetch(`http://localhost:3001/pack?part=${id}`, {signal: abortController.signal}).then(res => res.json());
                 setBrick(data);
                 console.log(color);
                 setColors({16: "#B40000", 24: "#333333"});
@@ -60,12 +60,14 @@ export const ThreePack = (props) => {
         for (let color in materials) {
             const material = materials[color];
 
-            // let a = performance.now();
-            // const mergedGeometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(material.geometries)).computeAngleVertexNormals(Math.PI/3); // 70deg
-            // let b = performance.now();
-            // console.log(`calculating normals took ${b-a}ms`)
-            const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(material.geometries);
-            mergedGeometry.computeVertexNormals();
+            let a = performance.now();
+            const mergedGeometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(material.geometries)).computeAngleVertexNormals(Math.PI/3); // 70deg
+            let b = performance.now();
+            console.log(`calculating normals took ${b-a}ms`)
+            // const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(material.geometries);
+            // mergedGeometry.computeVertexNormals();
+
+            console.log(mergedGeometry.getAttribute("position").array.length/3);
 
             const mesh = new THREE.Mesh(mergedGeometry, material.material);
             mesh.castShadow = true;
@@ -74,7 +76,7 @@ export const ThreePack = (props) => {
             group.add(mesh);
         }
 
-        // new THREE.Box3().setFromObject(group).getCenter(group.position).multiplyScalar(- 1);
+        new THREE.Box3().setFromObject(group).getCenter(group.position).multiplyScalar(- 1);
 
         scene.add(group);
     };
@@ -104,7 +106,7 @@ export const ThreePack = (props) => {
             }
 
             if (part.type === 2) {
-                renderLine(scene, part.points[0], part.points[1], getColor(part.color, "#333333"), transformations, translations);
+                // renderLine(scene, part.points[0], part.points[1], getColor(part.color, "#333333"), transformations, translations);
             }
 
             if (part.type === 1) {
@@ -116,22 +118,22 @@ export const ThreePack = (props) => {
         }
     };
 
-    const renderLine = (scene, from, to, color, transformations, translations) => {
-        const geometry = new THREE.BufferGeometry().setFromPoints([Vector31.set(...to), Vector32.set(...from)]);
-        const material = new THREE.LineBasicMaterial({ color: color, linewidth: 1 });
+    // const renderLine = (scene, from, to, color, transformations, translations) => {
+    //     const geometry = new THREE.BufferGeometry().setFromPoints([Vector31.set(...to), Vector32.set(...from)]);
+    //     const material = new THREE.LineBasicMaterial({ color: color, linewidth: 1 });
 
-        const line = new THREE.Line(geometry, material);
+    //     const line = new THREE.Line(geometry, material);
 
-        for (let i = transformations.length - 1; i >= 0; i--) {
-            geometry.applyMatrix4(Matrix4.setFromMatrix3(transformations[i]));
-            geometry.translate(translations[i].x, translations[i].y, translations[i].z);
-        }
+    //     for (let i = transformations.length - 1; i >= 0; i--) {
+    //         geometry.applyMatrix4(Matrix4.setFromMatrix3(transformations[i]));
+    //         geometry.translate(translations[i].x, translations[i].y, translations[i].z);
+    //     }
 
-        geometry.applyMatrix4(Matrix4.setFromMatrix3(changeBasis));
+    //     geometry.applyMatrix4(Matrix4.setFromMatrix3(changeBasis));
 
-        creases.push(line);
-        // scene.add(line);
-    };
+    //     creases.push(line);
+    //     // scene.add(line);
+    // };
 
     const renderFace = (scene, vertices, color, transformations, translations, invert = false, clockwise = false) => {
         const geometry = new THREE.BufferGeometry();
@@ -165,6 +167,7 @@ export const ThreePack = (props) => {
     };
 
     useEffect(() => {
+        let a = performance.now();
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -221,7 +224,7 @@ export const ThreePack = (props) => {
 
         });
 
-        let a = performance.now();
+        // let a = performance.now();
         renderer.render(scene, camera);
         let b = performance.now();
         console.log(`initial render took ${b-a}ms`)

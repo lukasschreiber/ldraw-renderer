@@ -93,8 +93,12 @@ const scrapeImages = async (id) => {
         images.push(candidate);
     }
 
-    bulk.execute();
-    SetImages.updateOne({ set_num: id }, { $set: { rebrickable: imageId } }, { upsert: true });
+    if(bulk.length > 0){
+        bulk.execute();
+        SetImages.updateOne({ set_num: id }, { $set: { rebrickable: imageId } }, { upsert: true });
+    }else{
+        SetImages.updateOne({ set_num: id }, { $set: { rebrickable: null } }, { upsert: true });
+    }
 
     return images;
 };

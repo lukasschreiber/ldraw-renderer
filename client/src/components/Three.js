@@ -35,7 +35,7 @@ export const Three = (props) => {
             try{
                 //26074p01 Penguin 0
                 //64452p02 Cow 15
-                const data = await fetch(`http://192.168.178.53:3001/parse?part=3001&color=14`, {signal: abortController.signal}).then(res => res.json());
+                const data = await fetch(`http://localhost:3001/parse?part=3001&color=14`, {signal: abortController.signal}).then(res => res.json());
                 renderPart(scene, data);
                 setBrick(data);
             }catch(err) {
