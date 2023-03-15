@@ -6,7 +6,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 import './helpers/creaseVertexNormals.js';
-import './helpers/loopSubdivideSurfaces.js';
+import { LoopSubdivision } from './helpers/loopSubsivision.js';
 
 export const Playground = () => {
 
@@ -68,7 +68,8 @@ export const Playground = () => {
 
             if (rest.length > 0) {
                 const mergedGeometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(rest)).computeAngleVertexNormals(Math.PI / 3);
-                const mesh = new THREE.Mesh(mergedGeometry, material.material);
+                const subdividedGeometry = LoopSubdivision.modify(mergedGeometry, 2);
+                const mesh = new THREE.Mesh(subdividedGeometry, material.material);
                 mesh.castShadow = true;
                 mesh.receiveShadow = true;
                 group.add(mesh);
@@ -76,6 +77,7 @@ export const Playground = () => {
         }
 
         group.applyMatrix4(Matrix4.setFromMatrix3(changeBasis));
+
         scene.add(group);
     };
 
@@ -98,9 +100,9 @@ export const Playground = () => {
             }
 
             for (let color in facesByColor) {
-                const geometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(facesByColor[color])).computeAngleVertexNormals(Math.PI / 3));
+                const geometry = BufferGeometryUtils.mergeVertices(BufferGeometryUtils.mergeBufferGeometries(facesByColor[color])).computeAngleVertexNormals(Math.PI / 3);
                 geometry.name = data.names[hash];
-                facesByColor[color] = geometry.subdivideSurfaces();
+                facesByColor[color] = BufferGeometryUtils.mergeVertices(geometry);
             }
 
             geometries[hash] = facesByColor;

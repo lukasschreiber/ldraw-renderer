@@ -1,16 +1,17 @@
 import React, { useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import * as THREE from 'three';
 import { IcosahedronBufferGeometry } from 'three';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper.js';
 // import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import './helpers/creaseVertexNormals.js';
-import './helpers/loopSubdivideSurfaces.js';
 import { LoopSubdivision } from './helpers/loopSubsivision.js';
 
 export const PlaygroundIso = () => {
 
     const mount = useRef(null);
+    const params = useParams();
 
     const positionLight = new THREE.Matrix3().set(4, 0, 0.2, 0, 3.9, 0, 0.2, 0, 4);
 
@@ -54,7 +55,7 @@ export const PlaygroundIso = () => {
 
         
         let geometry = new IcosahedronBufferGeometry(40);
-        geometry = LoopSubdivision.modify(geometry, 5);
+        geometry = LoopSubdivision.modify(geometry, params.res);
         geometry = geometry.computeAngleVertexNormals(Math.PI/100);
         const material = new THREE.MeshStandardMaterial({ color: '#B40000', metalness: 0, roughness: .3 });
         // const edges = new THREE.EdgesGeometry(geometry, 0);

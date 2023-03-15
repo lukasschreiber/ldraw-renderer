@@ -5,7 +5,6 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
 import './helpers/creaseVertexNormals.js';
-import './helpers/loopSubdivideSurfaces.js';
 
 export const ThreePack = (props) => {
 

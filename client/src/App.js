@@ -16,7 +16,7 @@ function App() {
           <Route path=":set_num" element={<Set />} />
         </Route>
         <Route path="three/:id" element={<ThreePack />} />
-        <Route path="/iso" element={<PlaygroundIso />} />
+        <Route path="/iso/:res" element={<PlaygroundIso />} />
         <Route path="/playground">
         <Route path=":id" element={<Playground />} />
           <Route path=":id/:color" element={<Playground />} />

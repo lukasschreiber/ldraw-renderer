@@ -1,4 +1,4 @@
-// based of: https://github.com/stevinz/three-subdivide/blob/master/three-example/webgl_modifier_subdivision.html
+// based of: https://github.com/stevinz/three-subdivide
 
 import * as THREE from 'three';
 
@@ -151,17 +151,17 @@ class LoopSubdivision {
             if (!existingNeighbors[posHash]) existingNeighbors[posHash] = {};
             if (!existingNeighbors[posHash][neighborHash]) existingNeighbors[posHash][neighborHash] = [];
             existingNeighbors[posHash][neighborHash].push(index);
-        }
+        };
 
         const addOpposite = (posHash, index) => {
             if (!flatOpposites[posHash]) flatOpposites[posHash] = [];
             flatOpposites[posHash].push(index);
-        }
+        };
 
         const addEdgePoint = (posHash, edgeHash) => {
             if (!existingEdges[posHash]) existingEdges[posHash] = new Set();
             existingEdges[posHash].add(edgeHash);
-        }
+        };
 
         ///// Existing Vertex Hashes
         for (let i = 0; i < vertexCount; i += 3) {
@@ -196,6 +196,7 @@ class LoopSubdivision {
             addEdgePoint(posHash2, hash1to2);
             addEdgePoint(posHash2, hash2to0);
         }
+        // console.log(existingEdges)
 
         ///// Flat Position to Index Map
         for (let i = 0; i < flat.attributes.position.count; i++) {
@@ -259,17 +260,27 @@ class LoopSubdivision {
                     ///// Adjust Source Vertex
                     if (neighbors) {
 
+                        ///// Preserve Edges
+                        let edgeSet = existingEdges[positionHash];
+                        let hasPair = true;
+                        for (const edgeHash of edgeSet) {
+                            if (flatOpposites[edgeHash].length % 2 !== 0) hasPair = false;
+                        }
+                        if (!hasPair) {
+                            // continue;
+
+                            // old edge Vertices
+                            
+                        }
+
                         // Number of Neighbors
                         const k = Object.keys(neighbors).length;
 
                         ///// Loop's Formula
-                        const beta = 1 / k * ((5 / 8) - Math.pow((3 / 8) + (1 / 4) * Math.cos(2 * Math.PI / k), 2));
+                        // const beta = 1 / k * ((5 / 8) - Math.pow((3 / 8) + (1 / 4) * Math.cos(2 * Math.PI / k), 2));
 
                         ///// Warren's Formula
-                        // const beta = (k > 3) ? 3 / (8 * k) : ((k === 3) ? 3 / 16 : 0);
-
-                        ///// Stevinz' Formula
-                        // const beta = 0.5 / k;
+                        const beta = (k > 3) ? 3 / (8 * k) : ((k === 3) ? 3 / 16 : 0);
 
                         ///// Average with Neighbors
                         const startWeight = 1.0 - (beta * k);
@@ -359,16 +370,16 @@ const hashFromNumber = (num, shift = _positionShift) => {
     let roundedNumber = round(num * shift);
     if (roundedNumber === 0) roundedNumber = 0; /* prevent -0 (signed 0 can effect Math.atan2(), etc.) */
     return `${roundedNumber}`;
-}
+};
 
 /** Generates hash strong from Vector3 */
 const hashFromVector = (vector, shift = _positionShift) => {
     return `${hashFromNumber(vector.x, shift)},${hashFromNumber(vector.y, shift)},${hashFromNumber(vector.z, shift)}`;
-}
+};
 
 const round = (x) => {
     return (x + ((x > 0) ? 0.5 : -0.5)) << 0;
-}
+};
 
 /////////////////////////////////////////////////////////////////////////////////////
 /////   Local Functions, Geometry
